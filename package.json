@@ -7,5 +7,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wjgeoghegan/node_web_scanner.git"
+  },
+  "dependencies": {
+    "node-random": "^1.0.0"
+  }
 }
