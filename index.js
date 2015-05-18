@@ -27,7 +27,7 @@ setInterval(function(){
      *  2   : 99 pm
      *  3   : 140 pm
      *  4   : 185 pm
-     *  5   : 196 pm  
+     *  5   : 196 pm  / 208 once active bug fixed
      *
      *
      *  
@@ -137,6 +137,7 @@ function store(ip){
     if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
      //   console.log(data_queue[ip]);
         ++counter;
+        --active;
     }
     else {
             store_interval = setInterval(function(){
