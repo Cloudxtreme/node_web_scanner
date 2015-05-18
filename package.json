@@ -13,6 +13,7 @@
     "url": "https://github.com/wjgeoghegan/node_web_scanner.git"
   },
   "dependencies": {
+    "mongodb": "^2.0.31",
     "node-random": "^1.0.0"
   }
 }
