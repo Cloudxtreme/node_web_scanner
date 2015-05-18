@@ -1,10 +1,154 @@
-// foreach random.ipaddress
-// -- hostname
-// -- ping
-// -- portscan ports: 80,21,23,22,81,8080
+console.log('loading...');
+
+var random = require('node-random');
+var mongo = require('mongodb').MongoClient, assert = require('assert');
+var spawn = require('child_process').spawn;
+var http = require('http');
+
+console.log('loaded modules');
+
+data_queue = [];
+active = 0;
+
+counter = 0;
+//app_start();
+
+setInterval(function(){
+    console.log(counter + ' completed per minute');
+    counter = 0;
+}, 60000);
+
+/*
+ *
+ *      Performance results for app_start (active < X)
+ *
+     *  100 : 212 pm
+     *  1   : 56 pm
+     *  2   : 99 pm
+     *  3   : 140 pm
+     *  4   : 185 pm
+     *  5   : 196 pm  
+     *
+     *
+     *  
+     */
 
 
+setInterval(app_start, 25);
 
+function app_start(){
+    if (active < 5) {
+        //console.log('app_start');
+        ++active;
+        go('db');
+    }    
+    /*for (active=0; active<10; ++active){
+        go('db');
+    }*/
+}
+
+function go(db){            
+    get_random_ip(do_hostname);
+}
+
+function get_random_ip(callback) {
+   // console.log('get_random_ip');
+    var seg1 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
+    var seg2 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
+    var seg3 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
+    var seg4 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
+    
+    ip = seg1 + '.' + seg2 + '.' + seg3 + '.' + seg4;
+    data_queue[ip] = {
+        'ip': ip,
+        'alive': false,
+        'hostname': 'unknown',
+        'jobs': {
+            'ping': false,
+            'hostname': false
+        }
+    }
+    callback(ip, do_ping);
+}
+
+function do_hostname(ip, callback) {
+    //console.log('do_hostname');
+
+    callback(ip, store);
+    
+    var cmd = 'host';
+    var child = spawn(cmd, [ip]);
+    
+    child.stdout.on('data', function(stdout){        
+        stdout = String(stdout);        
+        if (!stdout.match(/not found/)) {
+            data_queue[ip].hostname = stdout.split(' ')[4].replace('.\n','').replace('\n','');            
+        }
+    });
+    
+    child.on('close', function(){
+        data_queue[ip].jobs['hostname'] = true;
+        //console.log("Setting hostname to complete (" + ip + ")");
+    })
+    
+    child.stderr.on('data', function(stderr){
+       
+    });
+    
+    child.on('error', function(e){
+       // data_queue[ip].jobs['hostname'] = true;
+       // console.log("Setting hostname to complete (" + ip + ")");
+    });
+}
+
+function do_ping(ip, callback) {
+    //console.log('do_ping');
+    callback(ip);
+    
+    var cmd = 'ping'; // + data.ip;           
+    var child = spawn(cmd, ['-c','1','-w', '1', ip]);
+    
+    child.stdout.on('data', function(stdout){        
+        stdout = String(stdout);        
+        if (stdout.match(/bytes from/)) {            
+            data_queue[ip].alive = true;                        
+        }                
+    });
+    
+    child.stderr.on('data', function(stderr){
+     //  callback(data);
+    });
+    
+    child.on('error', function(e){
+      // callback(data);
+    });
+    
+    child.on('close', function(){
+       //console.log('closed');
+       data_queue[ip].jobs['ping'] = true;
+     //  console.log("Setting ping to complete (" + ip + ")");
+    });
+}
+
+function store(ip){
+    
+    var store_interval;
+    
+    if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
+     //   console.log(data_queue[ip]);
+        ++counter;
+    }
+    else {
+            store_interval = setInterval(function(){
+                if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
+                    clearInterval(store_interval);
+                   // console.log(data_queue[ip]);
+                    ++counter;
+                    --active;                
+                }
+        }, 50);
+    }
+}
 
 // Converted from: http://stackoverflow.com/questions/13818064/check-if-an-ip-address-is-private
 function ip_is_private (ip) {    
