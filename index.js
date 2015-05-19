@@ -5,18 +5,26 @@ var mongo = require('mongodb').MongoClient, assert = require('assert');
 var spawn = require('child_process').spawn;
 var http = require('http');
 
+var reverse = require('dns').reverse;
+var ping = require('ping');
+
+
 console.log('loaded modules');
 
 data_queue = [];
 active = 0;
 
 counter = 0;
-//app_start();
+app_start();
+
 
 setInterval(function(){
-    console.log(counter + ' completed per minute');
+    console.log(counter + ' completed per 10 seconds (' + counter * 6 + 'pm)');
     counter = 0;
-}, 60000);
+}, 10000);
+
+
+//app_start();
 
 /*
  *
@@ -30,14 +38,16 @@ setInterval(function(){
      *  5   : 196 pm  / 208 once active bug fixed
      *
      *
-     *  
+     *  Performance results once using npm modules instead of spawn()
+     *  100 :   544 / 509 / 450
+     *  5:  152
      */
 
 
 setInterval(app_start, 25);
 
 function app_start(){
-    if (active < 5) {
+    if (active < 1000) {
         //console.log('app_start');
         ++active;
         go('db');
@@ -52,7 +62,7 @@ function go(db){
 }
 
 function get_random_ip(callback) {
-   // console.log('get_random_ip');
+  //  console.log('get_random_ip');
     var seg1 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
     var seg2 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
     var seg3 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
@@ -72,66 +82,37 @@ function get_random_ip(callback) {
 }
 
 function do_hostname(ip, callback) {
-    //console.log('do_hostname');
-
+   // console.log('do_hostname');
     callback(ip, store);
-    
-    var cmd = 'host';
-    var child = spawn(cmd, [ip]);
-    
-    child.stdout.on('data', function(stdout){        
-        stdout = String(stdout);        
-        if (!stdout.match(/not found/)) {
-            data_queue[ip].hostname = stdout.split(' ')[4].replace('.\n','').replace('\n','');            
+        
+    var lookup = reverse(ip, function(err, hostnames){    
+        //console.log("result for: " + ip);    
+        if ( err != null ){
+            //console.log("error: " + err.code);
+            data_queue[ip].jobs['hostname'] = true;
         }
-    });
-    
-    child.on('close', function(){
-        data_queue[ip].jobs['hostname'] = true;
-        //console.log("Setting hostname to complete (" + ip + ")");
-    })
-    
-    child.stderr.on('data', function(stderr){
-       
-    });
-    
-    child.on('error', function(e){
-       // data_queue[ip].jobs['hostname'] = true;
-       // console.log("Setting hostname to complete (" + ip + ")");
+        else {
+            // only get 1 lookup
+            data_queue[ip].hostname = hostnames[0];
+            data_queue[ip].jobs['hostname'] = true;
+        }                
     });
 }
 
 function do_ping(ip, callback) {
-    //console.log('do_ping');
+   // console.log('do_ping');
     callback(ip);
     
-    var cmd = 'ping'; // + data.ip;           
-    var child = spawn(cmd, ['-c','1','-w', '1', ip]);
-    
-    child.stdout.on('data', function(stdout){        
-        stdout = String(stdout);        
-        if (stdout.match(/bytes from/)) {            
-            data_queue[ip].alive = true;                        
-        }                
-    });
-    
-    child.stderr.on('data', function(stderr){
-     //  callback(data);
-    });
-    
-    child.on('error', function(e){
-      // callback(data);
-    });
-    
-    child.on('close', function(){
-       //console.log('closed');
-       data_queue[ip].jobs['ping'] = true;
-     //  console.log("Setting ping to complete (" + ip + ")");
+    ping.sys.probe(ip, function(replied){
+        if (replied) {
+            data_queue[ip].alive = true;            
+        }
+        data_queue[ip].jobs['ping'] = true;
+        
     });
 }
 
-function store(ip){
-    
+function store(ip){ 
     var store_interval;
     
     if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
@@ -143,7 +124,9 @@ function store(ip){
             store_interval = setInterval(function(){
                 if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
                     clearInterval(store_interval);
-                   // console.log(data_queue[ip]);
+                    
+                    
+                    //console.log(data_queue[ip]);
                     ++counter;
                     --active;                
                 }
