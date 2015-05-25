@@ -1,68 +1,43 @@
 console.log('loading...');
-
 var random = require('node-random');
 var mongo = require('mongodb').MongoClient, assert = require('assert');
 var spawn = require('child_process').spawn;
 var http = require('http');
-
 var reverse = require('dns').reverse;
 var ping = require('ping');
-
 
 console.log('loaded modules');
 
 data_queue = [];
 active = 0;
 
-counter = 0;
-app_start();
+setupServer();
 
+var server;
 
-setInterval(function(){
-    console.log(counter + ' completed per 10 seconds (' + counter * 6 + 'pm)');
-    counter = 0;
-}, 10000);
+function setupServer() {
+    server = http.createServer(function(req,res){
+        console.log(req);
+        res.writeHead(200);        
+    });
+    
+    server.listen(3000);    
+}
 
-
-//app_start();
-
-/*
- *
- *      Performance results for app_start (active < X)
- *
-     *  100 : 212 pm
-     *  1   : 56 pm
-     *  2   : 99 pm
-     *  3   : 140 pm
-     *  4   : 185 pm
-     *  5   : 196 pm  / 208 once active bug fixed
-     *
-     *
-     *  Performance results once using npm modules instead of spawn()
-     *  100 :   544 / 509 / 450
-     *  5:  152
-     */
-
-
-setInterval(app_start, 25);
+setInterval(app_start, 250);
 
 function app_start(){
-    if (active < 1000) {
-        //console.log('app_start');
+    if (active < 25) {        
         ++active;
         go('db');
-    }    
-    /*for (active=0; active<10; ++active){
-        go('db');
-    }*/
+    }        
 }
 
 function go(db){            
     get_random_ip(do_hostname);
 }
 
-function get_random_ip(callback) {
-  //  console.log('get_random_ip');
+function get_random_ip(callback) {  
     var seg1 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
     var seg2 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
     var seg3 = Math.floor( Math.random() * ( 1 + 255 - 1 ) ) + 1;
@@ -81,14 +56,11 @@ function get_random_ip(callback) {
     callback(ip, do_ping);
 }
 
-function do_hostname(ip, callback) {
-   // console.log('do_hostname');
+function do_hostname(ip, callback) {   
     callback(ip, store);
         
-    var lookup = reverse(ip, function(err, hostnames){    
-        //console.log("result for: " + ip);    
-        if ( err != null ){
-            //console.log("error: " + err.code);
+    var lookup = reverse(ip, function(err, hostnames){            
+        if ( err != null ){            
             data_queue[ip].jobs['hostname'] = true;
         }
         else {
@@ -99,16 +71,14 @@ function do_hostname(ip, callback) {
     });
 }
 
-function do_ping(ip, callback) {
-   // console.log('do_ping');
+function do_ping(ip, callback) {   
     callback(ip);
     
     ping.sys.probe(ip, function(replied){
         if (replied) {
             data_queue[ip].alive = true;            
         }
-        data_queue[ip].jobs['ping'] = true;
-        
+        data_queue[ip].jobs['ping'] = true;        
     });
 }
 
@@ -116,19 +86,13 @@ function store(ip){
     var store_interval;
     
     if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
-     //   console.log(data_queue[ip]);
-        ++counter;
         --active;
     }
     else {
             store_interval = setInterval(function(){
                 if ( (data_queue[ip].jobs['ping'] == true) && (data_queue[ip].jobs['hostname'] == true) ){
                     clearInterval(store_interval);
-                    
-                    
-                    //console.log(data_queue[ip]);
-                    ++counter;
-                    --active;                
+                    --active;
                 }
         }, 50);
     }
